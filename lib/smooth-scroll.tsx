@@ -12,6 +12,26 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
  * share one frame budget. Without this, ScrollTrigger fires against native
  * scroll while Lenis runs its own loop and every scroll-driven element stutters.
  */
+/**
+ * The two numbers that decide how the page feels under the wheel. They are not
+ * a performance setting — they are the art direction, and they are the first
+ * thing to reach for if scrolling feels wrong.
+ *
+ *   duration        how long the page keeps travelling after you stop pushing.
+ *                   Higher reads as weight; past ~1.5s it starts reading as
+ *                   input lag instead, because the page is visibly behind you.
+ *   wheelMultiplier how much distance one wheel notch buys. Below 1 the page
+ *                   resists you; it makes a short page feel long and a slow
+ *                   page feel broken.
+ *
+ * The brief specified `duration: 2.0, wheelMultiplier: 0.75` — maximum weight.
+ * Restore those two values for the original feel.
+ */
+export const SCROLL_FEEL = {
+  duration: 1.15,
+  wheelMultiplier: 1.0,
+};
+
 let instance: Lenis | null = null;
 
 /**
@@ -26,9 +46,8 @@ export function getLenis() {
 export function useSmoothScroll() {
   useEffect(() => {
     const lenis = new Lenis({
-      duration: 2.0, // heavy settle — the page has mass
+      ...SCROLL_FEEL,
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      wheelMultiplier: 0.75, // resistant — the user works for progress
       smoothWheel: true,
       syncTouch: false, // native scroll on mobile
     });

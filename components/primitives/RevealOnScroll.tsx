@@ -5,7 +5,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { dur } from "@/lib/motion";
-import { useSceneReveal } from "@/lib/use-scene-reveal";
+import { useSceneContext } from "@/lib/use-scene-reveal";
 
 /**
  * Every piece of content in every scene reveals through this component.
@@ -25,7 +25,7 @@ export function RevealOnScroll({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const { track, enterAt } = useSceneReveal();
+  const { track, enterAt } = useSceneContext();
 
   useGSAP(
     () => {

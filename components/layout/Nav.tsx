@@ -30,21 +30,25 @@ function scrollToScene(index: number) {
 export function Nav() {
   const navRef = useRef<HTMLElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const lastPct = useRef(-1);
 
   useGSAP(() => {
+    // A scrim, not backdrop-filter. A blurred backdrop over the 3D camera
+    // forces the compositor to read back and re-blur the whole scene behind
+    // the bar on every scrolled frame, which is one of the most expensive
+    // things you can put on a scrolling page. Over a dark world a gradient
+    // scrim is visually equivalent and costs nothing.
     const frost = ScrollTrigger.create({
       start: "10vh top",
       onEnter: () =>
         gsap.to(navRef.current, {
-          backdropFilter: "blur(12px)",
-          backgroundColor: "rgba(var(--bg-rgb), 0.3)",
+          "--nav-scrim": 0.72,
           duration: 0.4,
           ease: "fade",
         }),
       onLeaveBack: () =>
         gsap.to(navRef.current, {
-          backdropFilter: "blur(0px)",
-          backgroundColor: "rgba(var(--bg-rgb), 0)",
+          "--nav-scrim": 0,
           duration: 0.4,
           ease: "fade",
         }),
@@ -58,10 +62,15 @@ export function Nav() {
           scaleY: self.progress,
           transformOrigin: "top",
         });
-        progressRef.current?.parentElement?.setAttribute(
-          "aria-valuenow",
-          String(Math.round(self.progress * 100)),
-        );
+        // Only touch the DOM attribute when the rounded value actually moves.
+        const pct = Math.round(self.progress * 100);
+        if (pct !== lastPct.current) {
+          lastPct.current = pct;
+          progressRef.current?.parentElement?.setAttribute(
+            "aria-valuenow",
+            String(pct),
+          );
+        }
       },
     });
 
@@ -75,8 +84,11 @@ export function Nav() {
     <>
       <nav
         ref={navRef}
-        className="fixed inset-x-0 top-0 z-50 flex items-center justify-between px-6 py-6 md:px-10"
-        style={{ backgroundColor: "rgba(var(--bg-rgb), 0)" }}
+        className="fixed inset-x-0 top-0 z-50 flex items-center justify-between px-6 py-6 md:px-10
+                   before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10
+                   before:h-[160%] before:bg-gradient-to-b before:from-[rgba(var(--bg-rgb),1)]
+                   before:to-transparent before:opacity-[var(--nav-scrim)]"
+        style={{ ["--nav-scrim" as string]: 0 }}
       >
         <a
           href="#main"

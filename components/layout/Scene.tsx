@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useCameraScenes, SCENE_DEPTH } from "@/lib/use-camera-scenes";
-import { SceneRevealContext } from "@/lib/use-scene-reveal";
+import { SceneContext } from "@/lib/use-scene-reveal";
 
 /**
  * A scene is a fixed station on the Z-track. It fades in as the camera
@@ -20,7 +20,21 @@ import { SceneRevealContext } from "@/lib/use-scene-reveal";
  * index/sceneCount, which would fade the final scene out before the camera
  * ever arrived at it.
  */
-const HALF_WINDOW = 0.6; // in scene-index units, per the fade spec
+
+/**
+ * Half the visible window, in scene-index units. 1.0 makes the fades a true
+ * linear crossfade: adjacent windows overlap exactly, the two live scenes'
+ * opacities always sum to 1, and no more than two are ever on screen.
+ *
+ * Do not lower this to save paint. At 0.5 the windows merely abut, so at the
+ * midpoint between two stations both scenes sit at opacity 0 and the page cuts
+ * to black for a frame. Culling (autoAlpha, below) is what keeps the cost down,
+ * not a narrow window.
+ *
+ * It does set how far past the viewport the plates must extend: at one full
+ * depth-step away CSS perspective scales a scene to 1200/2000 = 0.6.
+ */
+const HALF_WINDOW = 1.0;
 
 export function Scene({
   index,
@@ -44,7 +58,12 @@ export function Scene({
       const inStart = centre - halfWidth;
       const outEnd = centre + halfWidth;
 
-      gsap.set(el, { opacity: index === 0 ? 1 : 0 });
+      // autoAlpha, not opacity: it drops visibility to hidden at zero, which
+      // takes the scene's full-bleed plates out of paint and compositing
+      // entirely. An opacity-0 scene still rasterises, and with every scene
+      // holding oversized plates inside one preserve-3d context that is the
+      // single largest cost on the page.
+      gsap.set(el, { autoAlpha: index === 0 ? 1 : 0 });
 
       // A scrubbed timeline of length 1, so timeline time === track progress.
       // Real tweens rather than a bare onUpdate: a scrub trigger with no
@@ -58,16 +77,25 @@ export function Scene({
         },
       });
 
-      if (inStart > 0) {
+      // Windows are clamped to the track, and the guards key off the scene's
+      // position in the stack rather than off the clamped numbers. Testing
+      // `inStart > 0` would skip the fade-in of any scene whose window opens
+      // exactly at progress 0 — which, at a half-window of one full step, is
+      // scene 1 — leaving it hidden for the whole page.
+      const inFrom = Math.max(0, inStart);
+      const inDuration = centre - inFrom;
+      if (index > 0 && inDuration > 0) {
         tl.fromTo(
           el,
-          { opacity: 0 },
-          { opacity: 1, ease: "none", duration: halfWidth },
-          inStart,
+          { autoAlpha: 0 },
+          { autoAlpha: 1, ease: "none", duration: inDuration },
+          inFrom,
         );
       }
-      if (outEnd < 1) {
-        tl.to(el, { opacity: 0, ease: "none", duration: halfWidth }, centre);
+
+      const outDuration = Math.min(1, outEnd) - centre;
+      if (index < sceneCount - 1 && outDuration > 0) {
+        tl.to(el, { autoAlpha: 0, ease: "none", duration: outDuration }, centre);
       }
       tl.set({}, {}, 1); // pin the timeline length to exactly 1
 
@@ -79,25 +107,31 @@ export function Scene({
     { dependencies: [index, sceneCount, track, centre, halfWidth] },
   );
 
-  // Content reveals once the scene is roughly half faded in.
-  const reveal = useMemo(
-    () => ({ track, enterAt: Math.max(0, centre - halfWidth * 0.5) }),
+  const value = useMemo(
+    () => ({
+      track,
+      // Content reveals once the scene is roughly half faded in.
+      enterAt: Math.max(0, centre - halfWidth * 0.5),
+      centre,
+      halfWidth,
+    }),
     [track, centre, halfWidth],
   );
 
   return (
-    <SceneRevealContext.Provider value={reveal}>
+    <SceneContext.Provider value={value}>
       <section
         ref={ref}
         className="absolute inset-0 flex items-center justify-center"
         style={{
           transform: `translateZ(${-index * SCENE_DEPTH}px)`,
           opacity: index === 0 ? 1 : 0,
+          visibility: index === 0 ? "visible" : "hidden",
         }}
         aria-labelledby={`scene-${index}-heading`}
       >
         {children}
       </section>
-    </SceneRevealContext.Provider>
+    </SceneContext.Provider>
   );
 }

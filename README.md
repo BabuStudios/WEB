@@ -71,7 +71,7 @@ Each of these was a defect in the spec as written, found while building or while
 
 **7. Content reveals inside the camera.** Inside a sticky viewport every scene is permanently on screen, so `start: "top 85%"` fires all reveals at once on load. Scenes publish the track progress at which they arrive and `RevealOnScroll` triggers against that. On the mobile stack, where there is no camera, it uses the ordinary viewport trigger.
 
-**8. Plates are oversized, not viewport-sized.** A scene is visible while the camera is up to 0.6 depth-steps away, where perspective has scaled it to ~0.71. An `inset-0` background exposes the void at all four edges. Plates sit at `-inset-[26%]`, and parallax offsets ride inside that margin.
+**8. Plates are oversized, and the scene must not clip them.** A scene is visible while the camera is up to a full depth-step away, where perspective has scaled it to 0.6, so an `inset-0` background exposes the void at all four edges. Plates sit at `-inset-[36%]` (foreground `-inset-[46%]`, since it parallaxes furthest) — and `SceneWorld` drops its own `overflow: hidden` from `md` up, because a local clip cuts the plates straight back to the scene box and defeats the oversizing entirely. The sticky viewport already clips to the window; mobile keeps the local clip, where nothing else would.
 
 **9. `<Environment preset="studio" />` removed.** It streams an HDRI from an external CDN at runtime — a hard third-party dependency — and studio lighting is the wrong read for a void. The subject is unlit (`meshBasicMaterial`), so ambient plus the cursor light is sufficient.
 
@@ -85,7 +85,60 @@ Each of these was a defect in the spec as written, found while building or while
 
 **14. Nav anchors.** On a Z-track all scenes share one document position, so `#hash` links cannot reach them. Nav links translate a scene index into a scroll offset and hand it to `lenis.scrollTo`. On the mobile stack the elements exist and the hash is left alone.
 
+**15. The fade windows are a true crossfade.** At a half-window of 0.5 steps adjacent windows merely abut, so at the midpoint between two stations both scenes sit at opacity 0 and the page cuts to black for a frame. At 1.0 the windows overlap exactly, the two live scenes always sum to opacity 1, and never more than two are on screen. Guards on the fade tweens key off the scene index rather than the clamped window bounds — testing `inStart > 0` skips the fade-in of any scene whose window opens exactly at progress 0, which at this half-window is scene 1, leaving it hidden for the entire page.
+
 ---
+
+## Scroll performance
+
+The camera architecture has one dominant cost, and it is not the WebGL: every
+scene holds full-bleed plates inside a single `preserve-3d` context, so without
+culling the browser composites all of them on every frame whether or not they
+are on screen. Measured over a scripted 50-notch scroll at 1440×900:
+
+| | before | after |
+|---|---|---|
+| scenes painted (mean) | 4.0 | 1.7 |
+| median frame | 33.3 ms | 16.7 ms |
+| frames over 32 ms | 135 | 98 |
+
+What changed:
+
+- **Scenes cull themselves.** `autoAlpha` instead of `opacity`, so a scene at
+  zero drops to `visibility: hidden` and leaves paint and compositing entirely.
+  This is the single largest win.
+- **The hero's render loop stops.** `frameloop` flips to `never` once the camera
+  has left the hero. A full-viewport WebGL surface redrawing 566 sprites behind
+  a scene you cannot see is pure waste.
+- **Canvas capped at `dpr: 1.5`, antialiasing off.** The scene is soft sprites
+  and one unlit plane; a 2× buffer quadrupled fragment work for no visible gain
+  and there is no hard edge to alias.
+- **The nav uses a gradient scrim, not `backdrop-filter`.** A blurred backdrop
+  over the 3D camera forces the compositor to read back and re-blur the whole
+  scene behind the bar on every scrolled frame. Over a dark world the scrim is
+  visually equivalent and free.
+- **One parallax ScrollTrigger per scene instead of one per layer** — and it
+  now works. It was driven by the wrapper's position in the viewport, which
+  inside a sticky viewport never changes, so the layer parallax silently did
+  nothing while still costing work every frame. It reads camera distance now.
+- **WebP only, no AVIF.** On-demand AVIF encoding of ten 1920×1080 plates costs
+  minutes of CPU on a cold cache — enough to starve the page on first visit.
+  `sharp` is a dependency for the same reason: without it Next falls back to a
+  WASM encoder that is orders of magnitude slower.
+
+Note that the numbers above come from a software-rendered container that pins
+to 30 fps, so treat them as a ranking rather than as absolute figures. The
+structural changes are what carry to real hardware.
+
+### If it still feels heavy
+
+That may not be frame rate. `SCROLL_FEEL` in `lib/smooth-scroll.tsx` holds the
+two numbers that decide how the page responds to the wheel, and the brief asked
+for the heaviest possible setting — `duration: 2.0, wheelMultiplier: 0.75`,
+meaning the page keeps travelling for two seconds after you stop pushing and
+each notch buys three-quarters of the usual distance. That reads as input lag
+rather than as weight. They now default to `1.15` / `1.0`; the original values
+are in the comment there.
 
 ## Verified in a real browser
 
