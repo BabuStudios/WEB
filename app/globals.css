@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── COLOUR ────────────────────────────────────────────────────────────────
+   Dark mode. Never pure #000000 or #FFFFFF — the off-tones are the
+   difference between cinematic and generic. */
+:root {
+  --brand-color: #c9a227; /* old gold in candlelight */
+
+  --bg: #0a0a0b;
+  --bg-rgb: 10, 10, 11;
+  --ink: #f0ede7;
+  --ink-soft: #a8a5a0;
+  --ink-mute: #6a6760;
+  --rule: rgba(240, 237, 231, 0.08);
+  --accent: var(--brand-color);
+
+  /* ── TYPE SCALE ─────────────────────────────────────────────────────── */
+  --text-hero: clamp(4rem, 3rem + 9vw, 11rem);
+  --text-3xl: clamp(3.5rem, 2.5rem + 5vw, 7rem);
+  --text-2xl: clamp(2.5rem, 2rem + 2.5vw, 4rem);
+  --text-xl: clamp(1.75rem, 1.5rem + 1vw, 2.5rem);
+  --text-lg: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --text-sm: clamp(0.875rem, 0.85rem + 0.25vw, 1rem);
+  --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+}
+
+@layer base {
+  * {
+    border-color: var(--rule);
+  }
+
+  html {
+    /* Lenis owns scrolling — the browser must not also smooth it. */
+    scroll-behavior: auto;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  blockquote {
+    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1.02;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  :focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 4px;
+  }
+}
+
+@layer components {
+  /* Text over imagery: a shadow, never a background box. */
+  .over-image {
+    text-shadow: 0 2px 40px rgba(0, 0, 0, 0.6);
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: var(--text-xs);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  .measure {
+    max-width: 52ch;
+  }
+}
+
+/* Lenis is only smoothing while it says it is. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
